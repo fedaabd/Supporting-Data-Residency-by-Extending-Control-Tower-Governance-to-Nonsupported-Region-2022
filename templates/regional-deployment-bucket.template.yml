@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Deploy an S3 bucket with organization-wide read access based on Org-ID
+######################################
+#
+#     Parameters
+#
+######################################
+Parameters:
+  pOrganizationID:
+    Description: The AWS Organizations ID
+    Type: String
+
+######################################
+#
+#     RESOURCES
+#
+######################################
+Resources:
+
+  rSharedServicesBaselineBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Sub 'ct-baseline-template-${AWS::AccountId}-${AWS::Region}'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: "AllowOrgGetObject"
+            Principal: '*'
+            Effect: Allow
+            Action: 's3:GetObject'
+            Resource:
+              - !Sub '${rSharedServicesBaselineBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                'aws:PrincipalOrgID': !Sub ${pOrganizationID}
+
+  rSharedServicesBaselineBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub 'ct-baseline-template-${AWS::AccountId}-${AWS::Region}'
+      VersioningConfiguration:
+        Status: Enabled
+
+######################################
+#
+#     Outpots
+#
+######################################
+Outputs:
+  SharedServicesBaselineBucket:
+    Description: The Account Baselining Bucket
+    Value: !Ref rSharedServicesBaselineBucket

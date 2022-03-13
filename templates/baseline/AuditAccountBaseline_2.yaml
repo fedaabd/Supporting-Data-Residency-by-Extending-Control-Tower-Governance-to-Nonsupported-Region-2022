@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description:
+  Baseline an Audit Account in a Control Tower deployment
+
+################################
+# PARAMETERS
+#################################
+Parameters:
+  pBucketName:
+    Type: String
+
+  pLoggingAccountId:
+    Type: String
+
+  pAuditAccountId: 
+    Type: String
+
+  pAllConfigurationEmail:
+    Type: String
+
+  pSecurityNotificationEmail:
+    Type: String
+
+  pSubscribeToAllConfigurationTopic:
+    Type: String
+    AllowedValues:
+          - true
+          - false
+
+  pOrgID:
+    Type: String
+
+  pManagedResourcePrefix:
+    Type: 'String'
+
+################################
+# METADATA
+#################################
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Security Resources
+        Parameters:
+          - pLoggingAccountId
+          - pAuditAccountId
+
+      - Label:
+          default: Security Topics
+        Parameters:
+          - pAllConfigurationEmail 
+          - pSecurityNotificationEmail 
+          - pSubscribeToAllConfigurationTopic 
+          - pOrgID
+      - Label:
+          default: Template Location
+        Parameters: 
+          - pBucketName
+
+
+    ParameterLabels:
+      pLoggingAccountId:
+        default: 'Enter the Log Archive Account ID'
+      pAuditAccountId:
+        default: 'Enter the Audit Account ID'
+      pAllConfigurationEmail:
+        default: 'Enter the email for receiving all AWS configuration events'
+      pSecurityNotificationEmail:
+        default: 'Enter the email for the security administrator(s)'
+      pSubscribeToAllConfigurationTopic:
+        default: 'Indicates whether AllConfigurationEmail will be subscribed to the AllConfigurationTopicName topic'
+      pOrgID:
+        default: 'Enter the AWS Organizations ID to allow notifications from member accounts'
+      pBucketName:
+        default: 'Enter the S3 bucket name where the templates are stored'
+      pManagedResourcePrefix:
+        default: 'Enter "aws-controltower" for the value'
+
+################################
+# RESOURCES
+#################################
+Resources:
+  AWSSecurityResources:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: !Sub 
+                    - 'https://${bucket}.s3.${AWS::Region}.amazonaws.com/templates/baseline/AWSControlTowerSecurityResources.yml'
+                    - bucket: !Ref pBucketName
+      TimeoutInMinutes: 60
+      Parameters:
+        ManagedResourcePrefix: !Ref pManagedResourcePrefix
+        LoggingAccountId: !Ref pLoggingAccountId
+        AuditAccountId: !Ref pAuditAccountId
+
+  AWSSecuritTopics:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: !Sub 
+                    - 'https://${bucket}.s3.${AWS::Region}.amazonaws.com/templates/baseline/AWSControlTowerBP-SECURITY-TOPICS.yml'
+                    - bucket: !Ref pBucketName
+      TimeoutInMinutes: 60
+      Parameters:
+        AllConfigurationEmail: !Ref pAllConfigurationEmail
+        SecurityNotificationEmail: !Ref pSecurityNotificationEmail
+        OrgID: !Ref pOrgID
+        SubscribeToAllConfigurationTopic: !Ref pSubscribeToAllConfigurationTopic
+        ManagedResourcePrefix: !Ref pManagedResourcePrefix

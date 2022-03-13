@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This template configures Block Public Access
+
+Parameters:
+  lambdaCodeBucket:
+    Type: String
+    Description: The name of the bucket with the lamanda code
+    Default: ''
+  bucketKey:
+    Type: String
+    Description: Key of the lambda code
+    Default: blockPublicAccess.zip
+
+Resources:
+  blockPublicAccessLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: S3BlockPublicAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+          - Effect: Allow
+            Action:
+            - iam:ListRoles
+            - iam:CreateServiceLinkedRole
+            - s3:PutAccountPublicAccessBlock
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource: !Sub 
+                        - arn:aws:s3:::${bucketName}/*
+                        - { bucketName: !Ref lambdaCodeBucket }
+
+  blockPublicAccess:
+    Type: AWS::Lambda::Function
+    DependsOn: blockPublicAccessLambdaRole
+    Properties:
+      Description: A Lambda function to stop the default logs to eu-west-1
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt blockPublicAccessLambdaRole.Arn
+      Runtime: python3.6 
+      Timeout: 120
+      Environment:
+        Variables: 
+          accountId : !Ref AWS::AccountId
+      Code:
+        S3Bucket: !Ref lambdaCodeBucket
+        S3Key: !Ref bucketKey
+
+  blockPublicAccessLambdaCustomIvoke:
+    Type: Custom::StopLogLambdaInvoke
+    DependsOn: blockPublicAccess
+    Properties:
+      ServiceToken: !GetAtt blockPublicAccess.Arn
+
+  rLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn: blockPublicAccess
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt 'blockPublicAccess.Arn'
+      Principal: events.amazonaws.com

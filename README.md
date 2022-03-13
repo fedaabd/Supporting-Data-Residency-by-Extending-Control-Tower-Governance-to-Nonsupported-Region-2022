@@ -1,0 +1,1 @@
+# Supporting-Data-Residency-by-Extending-Control-Tower-Governance-to-Nonsupported-Region-2022

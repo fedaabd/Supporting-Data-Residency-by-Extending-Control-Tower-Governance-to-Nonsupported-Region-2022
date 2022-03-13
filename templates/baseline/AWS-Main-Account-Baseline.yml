@@ -7,7 +7,7 @@ Description:
 # PARAMETERS
 #################################
 Parameters:
-  pLogsRetentionInDays:
+  LogsRetentionInDays:
     Description: 'Specifies the number of days to retain CloudTrail
       log events in the CloudWatch Logs. This value is also used to retain
       notification forwarding log events in the Lambda log group.'
@@ -35,28 +35,28 @@ Parameters:
     Type: String
     Default: baseline-references
     Description: Enter bucket name where templates are stored.
-  pAuditAccountID:
+  AuditAccountID:
     Type: String
     Description: Audit Account ID
   #pManagedResourcePrefix: 
    # Type: String
     #Default: aws-controltower
     #Description: Enter prefix that is used for S3 Bucket Names, default is aws-controltower.      
-  pAWSLogsS3KeyPrefix:
+  AWSLogsS3KeyPrefix:
     Type: String
     Description: Enter organization ID.
 
-  pAuditBucketName:
+  AuditBucketName:
     Type: String
     Description: Enter S3 Audit Bucket name starting with aws-controltower-logs-xxxxx
 
-  ctHomeRegion: 
+  CTHomeRegion: 
     Type: String
     Description: Enter the home region where Control Tower is deployed
 
-  homeRegionName:
+  HomeRegionName:
     Type: String
-    Description: Enter the region to extend the governanance 
+    Description: Enter the region to extend the governance 
   
   #pLambdaS3Bucket:
    # Type: String
@@ -71,10 +71,10 @@ Metadata:
       - Label:
           default: Landing Zone Parameters
         Parameters:
-          - pLogsRetentionInDays
+          - LogsRetentionInDays
 
     ParameterLabels:
-      pLogsRetentionInDays:
+      LogsRetentionInDays:
         default: 'Log retention in days'
 
 ################################
@@ -91,14 +91,14 @@ Resources:
       Parameters:
         ManagedResourcePrefix: 'aws-controltower'
         AllConfigTopicName: 'aws-controltower-AllConfigNotifications'
-        AWSLogsS3KeyPrefix: !Ref pAWSLogsS3KeyPrefix
-        AuditBucketName: !Ref pAuditBucketName
+        AWSLogsS3KeyPrefix: !Ref AWSLogsS3KeyPrefix
+        AuditBucketName: !Ref AuditBucketName
         EnableLogFileValidation: 'true'
         IncludeGlobalEvents: 'true'
-        LogsRetentionInDays: !Sub ${pLogsRetentionInDays}
+        LogsRetentionInDays: !Sub ${LogsRetentionInDays}
         MultiRegion: 'true'
         PublishToCloudWatchLogs: 'true'
-        SecurityAccountId: !Ref pAuditAccountID
+        SecurityAccountId: !Ref AuditAccountID
 
 
 
@@ -110,17 +110,17 @@ Resources:
                    - bucket: !Ref BucketName 
       TimeoutInMinutes: 60
       Parameters:
-        AWSLogsS3KeyPrefix: !Ref pAWSLogsS3KeyPrefix
+        AWSLogsS3KeyPrefix: !Ref AWSLogsS3KeyPrefix
         AllConfigTopicName: 'aws-controltower-AllConfigNotifications'
         AllSupported: 'true'
-        AuditBucketName: !Ref pAuditBucketName
+        AuditBucketName: !Ref AuditBucketName
         Frequency: '24hours'
         IncludeGlobalResourceTypes: 'true'
         ManagedResourcePrefix: 'aws-controltower'
         ResourceTypes: '-'
-        SecurityAccountId: !Ref pAuditAccountID
+        SecurityAccountId: !Ref AuditAccountID
         IsHomeRegionInitialControlTowerRegion: 'false'
-        HomeRegionName: !Ref homeRegionName 
+        HomeRegionName: !Ref HomeRegionName 
 
   AWSControlTowerBASELINECLOUDWATCH:
     Type: 'AWS::CloudFormation::Stack'
@@ -131,9 +131,9 @@ Resources:
       TimeoutInMinutes: 60
       Parameters:
         EnableConfigRuleComplianceChangeAlarm: 'true'
-        LogsRetentionInDays: !Sub ${pLogsRetentionInDays}
+        LogsRetentionInDays: !Sub ${LogsRetentionInDays}
         ManagedResourcePrefix: 'aws-controltower'
-        SecurityAccountId: !Ref pAuditAccountID
+        SecurityAccountId: !Ref AuditAccountID
         SecurityTopicName: 'aws-controltower-AggregateSecurityNotifications'
         
   DeleteDefaultVPC:
@@ -168,4 +168,4 @@ Resources:
       Parameters:
         lambdaCodeBucket: !Ref BucketName
         bucketKey: 'stopLog.zip' 
-        ctHomeRegion: !Ref ctHomeRegion
+        ctHomeRegion: !Ref CTHomeRegion

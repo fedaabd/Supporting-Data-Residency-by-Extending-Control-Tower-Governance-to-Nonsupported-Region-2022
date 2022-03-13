@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This template disables the default CloudTrail Log Trail in the region it is launched.  
+
+Parameters:
+  lambdaCodeBucket:
+    Type: String
+    Description: The name of the bucket with the lamanda code
+  bucketKey:
+    Type: String
+    Description: Key of the lambda code
+    Default: stopLog.zip
+  ctHomeRegion:
+    Type: String
+    Description: "Home region where Control Tower has been deployed"
+
+Resources:
+  stopLogsLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: StopDefaultLogs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+          - Effect: Allow
+            Action:
+            - iam:ListRoles
+            - iam:CreateServiceLinkedRole
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource: !Sub 
+                        - arn:aws:s3:::${bucketName}/*
+                        - { bucketName: !Ref lambdaCodeBucket }
+          - Effect: Allow
+            Action:
+            - cloudtrail:StopLogging
+            Resource: !Sub arn:aws:cloudtrail:*:${AWS::AccountId}:trail/*
+
+  stopDefaultLogs:
+    Type: AWS::Lambda::Function
+    DependsOn: stopLogsLambdaRole
+    Properties:
+      Description: A Lambda function to stop the default logs to Home region
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Role: !GetAtt stopLogsLambdaRole.Arn
+      Runtime: python3.6 
+      Timeout: 120
+      Environment:
+        Variables: 
+          accountId : !Ref AWS::AccountId
+          region: !Ref ctHomeRegion
+      Code:
+        S3Bucket: !Ref lambdaCodeBucket
+        S3Key: !Ref bucketKey
+
+  stopLogLambdaCustomIvoke:
+    Type: Custom::StopLogLambdaInvoke
+    DependsOn: stopDefaultLogs
+    Properties:
+      ServiceToken: !GetAtt stopDefaultLogs.Arn
+
+  rLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn: stopDefaultLogs
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt 'stopDefaultLogs.Arn'
+      Principal: events.amazonaws.com

@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This template creates an IAM role in security breakglass account used to Assume role to any workload accounts
+
+Parameters:
+  pManagedResourcePrefix:
+    Type: String
+    Description: Prefix for the managed resources
+    Default: bfs-control-tower
+
+Resources:
+  rDefaultUserPassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub 'Default password for IAM users in the security breakglass IAM group'
+      GenerateSecretString:
+        GenerateStringKey: 'password'
+        SecretStringTemplate: '{"username": "Refer to security admin"}'
+      Name: xaccount-user-default-password
+
+  rUser:
+    Type: AWS::IAM::User
+    Properties:
+      Groups:
+        - !Ref rSecurityGroup
+      LoginProfile:
+        Password: '{{resolve:secretsmanager:xaccount-user-default-password:SecretString:password}}'
+        PasswordResetRequired: true
+      UserName: bfs-security-breakglass
+
+  rSecurityGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Sub '${pManagedResourcePrefix}-SecurityBreakGlassGroup'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Path: /
+
+  rSecurityRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${pManagedResourcePrefix}-SecurityBreakGlassRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: 'sts:AssumeRole'
+            Principal:
+              AWS:
+                - !GetAtt rUser.Arn
+                
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Path: /
+      Policies:
+        - PolicyName: !Sub "AssumeRole-${pManagedResourcePrefix}-SecurityBreakGlassRole"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub "arn:aws:iam::*:role/${pManagedResourcePrefix}-SecurityBreakGlassRole"
+
+Outputs:
+  SecurityRole:
+    Description: IAM Role for cross-account access
+    Value: !GetAtt rSecurityRole.Arn

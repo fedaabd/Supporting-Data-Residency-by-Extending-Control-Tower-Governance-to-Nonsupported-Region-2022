@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Delete the default VPC - part of account baseline.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: 'Lambda Settings'
+      Parameters:
+        - pTGWLambdaS3Bucket
+        - pTGWLambdaS3Key
+    ParameterLabels:
+      pTGWLambdaS3Bucket:
+        default: S3 Bucket
+      pTGWLambdaS3Key:
+        default: S3 Key
+
+Parameters:
+  pTGWLambdaS3Bucket:
+    Description: S3 Bucket for Transit Gateway Attachment Lambda Code
+    Type: String
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    Default: bucket-name
+  pTGWLambdaS3Key:
+    Description: The Key location of the Lambda zip for Transit Gateway Attachment.
+    Type: String
+    AllowedPattern: ^([a-zA-Z0-9[\\].\/()!:=?#,@+&;{}$-_])*
+    Default: lambaDeleteDefaultVPC.zip
+
+
+Resources:
+  rGetVpcLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: DeleteDefaultVPC
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+          - Effect: Allow
+            Action:
+            - ec2:DescribeVpcs
+            - ec2:DescribeSubnets
+            - ec2:DescribeRouteTables
+            - ec2:DescribeInternetGateways
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            - ec2:DescribeInstances
+            - ec2:DescribeNetworkAcls
+            - ec2:DescribeSecurityGroups
+            - ec2:DetachNetworkInterface
+            - ec2:DetachInternetGateway
+            - ec2:DeleteInternetGateway
+            - ec2:DeleteSubnet
+            - ec2:DeleteSecurityGroup
+            - ec2:DeleteRouteTable
+            - ec2:DisassociateRouteTable
+            - ec2:DisassociateSubnetCidrBlock
+            - ec2:ModifyNetworkInterfaceAttribute
+            - ec2:ResetNetworkInterfaceAttribute
+            - ec2:DeleteNetworkAcl
+            - ec2:DeleteVpc
+            - iam:ListRoles
+            - iam:CreateServiceLinkedRole
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource: !Sub 
+                        - arn:aws:s3:::${bucketName}/*
+                        - { bucketName: !Ref pTGWLambdaS3Bucket }                         
+  rGetVpcLambda:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - rGetVpcLambdaRole
+    Properties:
+      # FunctionName: !Sub TransitGatewayAttachmentsAndRoute
+      Role: !GetAtt rGetVpcLambdaRole.Arn
+      Description: Captures VPC metadata for Transit Gateway Attachments
+      Handler: index.lambda_handler
+      Runtime: python3.6
+      Timeout: 120
+      Code:
+        S3Bucket: !Ref pTGWLambdaS3Bucket
+        S3Key: !Ref pTGWLambdaS3Key
+
+  rGetVpcLambdaCustomIvoke:
+    Type: Custom::GetVPCLambdaInvoke
+    DependsOn: rGetVpcLambda
+    Properties:
+      ServiceToken: !GetAtt [ rGetVpcLambda, Arn ]
+
+  # Lambda permission - event rule can trigger evaluation
+  rLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn: rGetVpcLambda
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt 'rGetVpcLambda.Arn'
+      Principal: events.amazonaws.com
